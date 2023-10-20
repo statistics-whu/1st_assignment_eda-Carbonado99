@@ -1,0 +1,165 @@
+---
+title: "关于某家武汉市链接网站二手房分析"
+author: 董中明
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: false
+    fig_caption: true
+    latex_engine: xelatex
+    keep_tex: true
+documentclass: ctexart
+header-includes:
+  - \usepackage{setspace}
+  - \setstretch{1.5}
+  - \usepackage{geometry}
+  - \geometry{a4paper, left=2cm, right=2cm, top=2cm, bottom=2cm}
+---
+
+```{r setup, include = FALSE,echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE,error = FALSE, warning = FALSE, message = FALSE,
+                      out.width = "100%", split = FALSE, fig.align = "center")
+#load library
+library(tidyverse)
+library(kableExtra)
+library(lubridate)
+library(scales)
+library(plotly)
+library(patchwork)
+library(ggrepel)
+library(readr)
+library(showtext)
+showtext_auto(enable = TRUE)
+```
+
+
+# 数据介绍
+
+本报告**链家**数据获取方式如下：
+    
+报告人在2023年9月12日获取了[链家武汉二手房网站](https://wh.lianjia.com/ershoufang/)数据。
+    
+- 链家二手房网站默认显示100页，每页30套房产，因此本数据包括3000套房产信息；
+    
+- 数据包括了页面可见部分的文本信息，具体字段及说明见作业说明。
+
+说明：
+ 
+| 变量	           解释
+property_name	     小区名字
+property_region    所处区域
+price_ttl	         房屋总价，单位万元
+price_sqm	         房屋单价，单位元
+bedrooms	         房间数
+livingrooms	       客厅数
+building_area	     建筑面积
+directions1	       房屋主要朝向
+directions2	       房屋次要朝向
+decoration	       装修状况
+property_t_height	 楼栋总层数
+property_height	   房屋在所在楼栋所处位置，取值为高中低
+property_style	   建筑形式，如板楼、塔楼等
+followers	         在该二手房网站的关注人数
+near_subway	       是否靠近地铁
+if_2y	             产证是否满2年
+has_key	           中介是否有钥匙，标注“随时看房”表示有钥匙
+vr	               是否支持VR看房 
+    
+```{r}
+# 载入数据和预处理
+
+lj<- read_csv("./data/2023-09-12_cleaned.csv")
+summary(lj)
+
+```
+
+# 一、数据概览
+1、房屋总价：总价最少的是10.6万元 ，最高的是1380万元，平均价是155万元，中位数137万元；
+2、房屋单价：单价最低的是1771元/㎡，最高的是44656元/㎡，平均价是15148元/㎡，中位数14404元/㎡；
+3、建筑面积：建筑面积最小的是22.77㎡，建筑面积最大的是588.66㎡，平均面积是100.87㎡，中位数95.55㎡；
+4、房间数大多数在2~3间，客厅数在1~2间；
+5、关注人数：房子被关注最多是262人关注，最少的是没有人关注，平均每套房子被6个人关注。
+
+
+
+# 二、房屋建筑面积、单价、房间数分布情况
+```{r}
+lj_new <- filter(lj,building_area<400)
+ggplot(lj_new)+
+  geom_histogram(mapping = aes(x=building_area),binwidth = 3)
+  
+```
+
+```{r}
+ggplot(lj_new)+
+  geom_histogram(mapping = aes(x=price_sqm))
+```
+1.房屋建筑面积、价格与数量基本呈现正态分布
+2.大部分房子单价在1万~2万之间，面积100㎡左右，以三室两厅为主
+```{r}
+ggplot(lj_new)+
+  geom_histogram(mapping = aes(x=bedrooms))
+```
+2.大部分房子单价在1万~2万之间，面积100㎡左右，以三室两厅为主
+```{r}
+ggplot(lj_new)+
+  geom_histogram(mapping = aes(x=livingrooms))
+```
+```{r}
+decoration_c <- lj %>%
+  group_by(decoration) %>%
+  summarise(sum_decoration = n())
+
+decoration_rate <- function(x){
+  r <- c(0)
+  sum_c <- sum(x)
+  for (i in 1:length(x)){
+    r[i] <- round(x[i]/sum_c*100, 2)
+  }
+  return(r)
+}
+label_decoration <- decoration_rate(decoration_c$sum_decoration) 
+
+pie(decoration_c$sum_decoration, paste(decoration_c$decoration, label_decoration))
+```
+3、超过80%的房子都有装修。
+
+# 三、房屋区域及价格分析
+```{r}
+property_region_c <- lj %>% 
+  group_by(property_region) %>% 
+  summarise(sum_property = n())
+
+ggplot(property_region_c) +
+  geom_bar(aes(x = sum_property , y = reorder(property_region, sum_property)),stat = 'identity')
+```
+1、挂牌数量最多前五名分别是白沙洲、盘龙城、四新、光谷东、金银湖。
+
+```{r}
+price_sqm_top_10 <- arrange(lj,desc(price_sqm))  %>%
+head(10) 
+print(price_sqm_top_10)
+```
+
+2、单价排名前十的房子分别位于中南丁字桥、中北路、黄埔永清、CBD西北湖
+
+```{r}
+  ggplot(data=lj_new) +
+  geom_point(mapping=aes(x=building_area,y=price_sqm))+
+  geom_smooth(mapping=aes(x=building_area,y=price_sqm))
+```
+
+3、一般而言，大户型比小户型单价较高
+
+
+
+
+# 四、发现总结
+
+1、大部分挂牌的房子面积在100㎡左右，单价在1~2万之间，以三室两厅为主，说明刚需市场较为活跃；
+2、二手房源主要分布在白沙洲、盘龙城、四新、光谷东、金银湖，竞争压力较大，开发新楼盘尽量避开上述区域；
+3、大部分房屋为装修，购房者可省去装修的麻烦。
+
+
+
